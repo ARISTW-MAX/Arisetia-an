@@ -1,4 +1,4 @@
-name: ✅ RDP Max 60H (Final & Anti-Bug URL)
+name: ✅ RDP Max 60H (URL Sesuai Permintaan)
 
 on:
   workflow_dispatch:
@@ -46,17 +46,15 @@ jobs:
           echo "RDP_USER_CREDENTIALS=User: $username | Password: $password" >> $env:GITHUB_ENV
           Write-Host "Pengguna $username berhasil dibuat."
 
-      # 🚨 PERBAIKAN FATAL: Menggunakan versi terbaru dan URL rilis GitHub yang aman
-      - name: ⬇️ Install Tailscale (Reliable Download)
+      # 🚨 LANGKAH KRITIS: Menggunakan URL pkgs.tailscale.com
+      - name: ⬇️ Install Tailscale (URL Khusus)
         shell: powershell
         run: |
-          # Versi stabil terbaru yang dikonfirmasi (1.92.1)
-          $version = "1.92.1" 
-          # Menggunakan URL rilis GitHub untuk menghindari masalah 404
-          $tsUrl = "https://github.com/tailscale/tailscale/releases/download/v$version/tailscale-setup-$version-amd64.msi"
+          # MENGGUNAKAN URL DARI PERMINTAAN PENGGUNA
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.92.1-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
           
-          Write-Host "Mencoba mengunduh Tailscale versi $version dari $tsUrl..."
+          Write-Host "Mencoba mengunduh Tailscale dari $tsUrl..."
           
           # Menggunakan Start-BitsTransfer yang andal
           Start-BitsTransfer -Source $tsUrl -Destination $installerPath
