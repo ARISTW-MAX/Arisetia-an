@@ -1,0 +1,108 @@
+name: ⏱️ RDP Max 60H (Input Auth Key)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tailscale_auth_key:
+        description: 'Masukkan Tailscale Auth Key Anda di sini (Gunakan Ephemeral Key untuk keamanan)'
+        required: true
+        type: string
+
+jobs:
+  extended-rdp-session:
+    runs-on: windows-latest
+    # Timeout maksimum 60 jam
+    timeout-minutes: 3600 
+
+    steps:
+      - name: ⚙️ Configure RDP & Firewall
+        run: |
+          # 1. Aktifkan RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                             -Name "fDenyTSConnections" -Value 0 -Force
+          # 2. Atur lapisan keamanan RDP ke Negotiate
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                             -Name "SecurityLayer" -Value 2 -Force
+          
+          # 3. Aturan Firewall untuk mengizinkan RDP (port 3389)
+          netsh advfirewall firewall delete rule name="RDP-Tailscale"
+          netsh advfirewall firewall add rule name="RDP-Tailscale" `
+            dir=in action=allow protocol=TCP localport=3389
+
+      - name: 🔐 Create Ephemeral RDP User
+        id: create_user
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.Web
+          $password = [System.Web.Security.Membership]::GeneratePassword(18, 4)
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          
+          $username = "RDP_Input" 
+          New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
+          
+          Add-LocalGroupMember -Group "Administrators" -Member $username
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+          
+          echo "RDP_USER_CREDENTIALS=User: $username | Password: $password" >> $env:GITHUB_ENV
+
+      - name: ⬇️ Install Tailscale
+        run: |
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-windows.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
+
+      - name: 🔗 Establish Tailscale Connection
+        run: |
+          $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          
+          # MENGGUNAKAN INPUT LANGSUNG DARI PENGGUNA
+          & $tsExe up --authkey=${{ github.event.inputs.tailscale_auth_key }} --hostname=gh-rdp-input-$env:GITHUB_RUN_ID --timeout=60s
+          
+          $tsIP = $null
+          $startTime = Get-Date
+          while (-not $tsIP -and (Get-Date).Subtract($startTime).TotalSeconds -lt 60) {
+              $tsIP = & $tsExe ip -4
+              if ($tsIP) { break }
+              Start-Sleep -Seconds 5
+          }
+          
+          if (-not $tsIP) {
+              Write-Error "Tailscale IP not assigned. Exiting."
+              exit 1
+          }
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+
+      - name: ✨ Display & Maintain Connection (60 Hours)
+        run: |
+          $timeoutMinutes = 3600
+          Write-Host "`n=========================================="
+          Write-Host "=== RDP ACCESS KREDENSIAL ==="
+          Write-Host "Waktu Maksimum: 60 Jam."
+          Write-Host "Alamat/IP Tailscale: $env:TAILSCALE_IP"
+          Write-Host "$env:RDP_USER_CREDENTIALS"
+          Write-Host "=========================================="
+          
+          # Loop untuk menjaga job tetap hidup selama durasi maksimum
+          $totalDurationSeconds = $timeoutMinutes * 60
+          $startTime = Get-Date
+          
+          while ((Get-Date).Subtract($startTime).TotalSeconds -lt $totalDurationSeconds) {
+              $secondsRemaining = $totalDurationSeconds - (Get-Date).Subtract($startTime).TotalSeconds
+              $hoursRemaining = [Math]::Floor($secondsRemaining / 3600)
+              $minutesRemaining = [Math]::Floor(($secondsRemaining % 3600) / 60)
+              
+              Write-Host "[$(Get-Date)] Sesi Aktif. Waktu tersisa: ${hoursRemaining}j ${minutesRemaining}m."
+              Start-Sleep -Seconds 300
+          }
+        if: success()
+        
+      - name: 🧹 Cleanup User
+        if: always()
+        run: |
+          if (Get-LocalUser -Name "RDP_Input" -ErrorAction SilentlyContinue) {
+              Remove-LocalUser -Name "RDP_Input" -Force
+          }
+          
