@@ -1,10 +1,10 @@
-name: ⏱️ RDP Max 60H (Input Auth Key & Robust)
+name: ✅ RDP Max 60H (Final & Robust)
 
 on:
   workflow_dispatch:
     inputs:
       tailscale_auth_key:
-        description: 'Masukkan Tailscale Auth Key Anda di sini (Gunakan Ephemeral Key untuk keamanan)'
+        description: 'Masukkan Tailscale Auth Key (Wajib menggunakan Ephemeral Key untuk keamanan)'
         required: true
         type: string
 
@@ -38,7 +38,7 @@ jobs:
           $password = [System.Web.Security.Membership]::GeneratePassword(18, 4)
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
-          $username = "RDP_Input" 
+          $username = "RDP_RUNNER" # Nama pengguna yang jelas
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
           
           Add-LocalGroupMember -Group "Administrators" -Member $username
@@ -47,16 +47,18 @@ jobs:
           echo "RDP_USER_CREDENTIALS=User: $username | Password: $password" >> $env:GITHUB_ENV
           Write-Host "Pengguna $username berhasil dibuat."
 
-      # 🚨 PERBAIKAN BUG UTAMA: Menggunakan Start-BitsTransfer untuk keandalan unduhan
-      - name: ⬇️ Install Tailscale (Unduhan Robust)
+      # 🚨 SOLUSI PERMANEN UNTUK ERROR 404: Menggunakan URL RILIS GITHUB SPESIFIK
+      - name: ⬇️ Install Tailscale (Reliable Download)
         shell: powershell
         run: |
-          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-windows.msi"
+          # Menggunakan URL yang spesifik dan stabil. Ganti v1.62.0 dengan versi terbaru jika diperlukan.
+          $version = "1.62.0" # Tentukan versi yang stabil
+          $tsUrl = "https://github.com/tailscale/tailscale/releases/download/v$version/tailscale-setup-$version-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
           
-          Write-Host "Mencoba mengunduh Tailscale dari $tsUrl..."
+          Write-Host "Mencoba mengunduh Tailscale versi $version dari $tsUrl..."
           
-          # Start-BitsTransfer lebih stabil di lingkungan Windows Server/Runner
+          # Menggunakan Start-BitsTransfer yang andal
           Start-BitsTransfer -Source $tsUrl -Destination $installerPath
           
           Write-Host "Unduhan selesai. Memulai instalasi..."
@@ -71,8 +73,8 @@ jobs:
         run: |
           $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
           
-          # Menggunakan input langsung dari pengguna
-          & $tsExe up --authkey=${{ github.event.inputs.tailscale_auth_key }} --hostname=gh-rdp-input-$env:GITHUB_RUN_ID --timeout=60s
+          # Autentikasi menggunakan input pengguna
+          & $tsExe up --authkey=${{ github.event.inputs.tailscale_auth_key }} --hostname=gh-rdp-runner-$env:GITHUB_RUN_ID --timeout=60s
           
           $tsIP = $null
           $startTime = Get-Date
@@ -114,19 +116,17 @@ jobs:
           Write-Host "Sesi RDP telah mencapai batas waktu. Mengakhiri job..."
         if: success()
         
-      # 🚨 PERBAIKAN BUG KEDUA: Pengecekan dan Penghapusan yang Lebih Aman
+      # Penghapusan pengguna yang sangat tangguh untuk menghindari bug
       - name: 🧹 Cleanup User
         if: always()
         shell: powershell
         run: |
-          $username = "RDP_Input" 
-          # Pengecekan eksplisit untuk menghindari error jika pengguna sudah dihapus atau tidak pernah dibuat
+          $username = "RDP_RUNNER" 
+          # Pengecekan eksplisit. Jika pengguna tidak ditemukan, skrip akan keluar tanpa error.
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
               Write-Host "Menghapus pengguna sementara $username..."
-              
-              # Menghapus tanpa -Force (untuk kompatibilitas) karena pengecekan sudah dilakukan
+              # Menghapus pengguna
               Remove-LocalUser -Name $username 
-              
               Write-Host "Pengguna $username telah dihapus."
           } else {
               Write-Host "Pengguna $username tidak ditemukan. Tidak ada yang dihapus."
