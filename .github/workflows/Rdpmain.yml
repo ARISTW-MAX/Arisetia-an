@@ -1,4 +1,4 @@
-name: ✅ RDP Max 60H (Final & Robust)
+name: ✅ RDP Max 60H (Final & Anti-Bug URL)
 
 on:
   workflow_dispatch:
@@ -34,11 +34,10 @@ jobs:
         shell: powershell
         run: |
           Add-Type -AssemblyName System.Web
-          # Kata sandi aman 18 karakter
           $password = [System.Web.Security.Membership]::GeneratePassword(18, 4)
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
-          $username = "RDP_RUNNER" # Nama pengguna yang jelas
+          $username = "RDP_RUNNER" 
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
           
           Add-LocalGroupMember -Group "Administrators" -Member $username
@@ -47,12 +46,13 @@ jobs:
           echo "RDP_USER_CREDENTIALS=User: $username | Password: $password" >> $env:GITHUB_ENV
           Write-Host "Pengguna $username berhasil dibuat."
 
-      # 🚨 SOLUSI PERMANEN UNTUK ERROR 404: Menggunakan URL RILIS GITHUB SPESIFIK
+      # 🚨 PERBAIKAN FATAL: Menggunakan versi terbaru dan URL rilis GitHub yang aman
       - name: ⬇️ Install Tailscale (Reliable Download)
         shell: powershell
         run: |
-          # Menggunakan URL yang spesifik dan stabil. Ganti v1.62.0 dengan versi terbaru jika diperlukan.
-          $version = "1.62.0" # Tentukan versi yang stabil
+          # Versi stabil terbaru yang dikonfirmasi (1.92.1)
+          $version = "1.92.1" 
+          # Menggunakan URL rilis GitHub untuk menghindari masalah 404
           $tsUrl = "https://github.com/tailscale/tailscale/releases/download/v$version/tailscale-setup-$version-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
           
@@ -73,7 +73,6 @@ jobs:
         run: |
           $tsExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
           
-          # Autentikasi menggunakan input pengguna
           & $tsExe up --authkey=${{ github.event.inputs.tailscale_auth_key }} --hostname=gh-rdp-runner-$env:GITHUB_RUN_ID --timeout=60s
           
           $tsIP = $null
@@ -116,16 +115,13 @@ jobs:
           Write-Host "Sesi RDP telah mencapai batas waktu. Mengakhiri job..."
         if: success()
         
-      # Penghapusan pengguna yang sangat tangguh untuk menghindari bug
       - name: 🧹 Cleanup User
         if: always()
         shell: powershell
         run: |
           $username = "RDP_RUNNER" 
-          # Pengecekan eksplisit. Jika pengguna tidak ditemukan, skrip akan keluar tanpa error.
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
               Write-Host "Menghapus pengguna sementara $username..."
-              # Menghapus pengguna
               Remove-LocalUser -Name $username 
               Write-Host "Pengguna $username telah dihapus."
           } else {
