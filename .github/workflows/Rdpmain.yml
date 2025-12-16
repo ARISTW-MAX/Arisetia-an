@@ -1,4 +1,4 @@
-name: ✅ RDP Max 60H (URL Sesuai Permintaan)
+name: ✅ [NORMAL] cloud PC rdp v-ARSTW
 
 on:
   workflow_dispatch:
@@ -117,7 +117,7 @@ jobs:
         if: always()
         shell: powershell
         run: |
-          $username = "RDP_RUNNER" 
+          $username = "[NORMAL] cloud PC rdp v-ARSTW" 
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
               Write-Host "Menghapus pengguna sementara $username..."
               Remove-LocalUser -Name $username 
